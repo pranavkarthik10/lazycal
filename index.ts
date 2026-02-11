@@ -139,6 +139,7 @@ class GoogleCalendarTUI {
       flexDirection: "column",
       backgroundColor: COLORS.headerBg,
       padding: 1,
+      justifyContent: "center",
     })
     this.rootBox.add(headerBox)
 
@@ -148,20 +149,20 @@ class GoogleCalendarTUI {
     const statusIcon = this.isGoogleConnected ? "●" : "○"
     const statusText = this.isGoogleConnected 
       ? `(${this.calendars.filter(c => c.enabled).length} calendars)` 
-      : "Sample Data"
+      : "Sample"
     
     const titleText = new TextRenderable(this.renderer, {
       id: "week-title",
-      content: `${weekRangeText}  ${statusIcon} ${statusText}`,
+      content: `${weekRangeText} ${statusIcon} ${statusText}`,
       fg: COLORS.headerFg,
       alignSelf: "center",
     })
     headerBox.add(titleText)
 
-    // Navigation hints
+    // Navigation hints - simplified
     const hintsText = new TextRenderable(this.renderer, {
       id: "hints",
-      content: "←→: Day  |  ↑↓: Week  |  h/l: Month  |  Enter: Details  |  c: Calendars  |  t: Today  |  q: Quit",
+      content: "←→ day  ↑↓ week  h/l month  c cals  t today  ? help  q quit",
       fg: COLORS.dayHeaderFg,
       alignSelf: "center",
     })
@@ -217,19 +218,21 @@ class GoogleCalendarTUI {
       const dayHeader = new BoxRenderable(this.renderer, {
         id: `day-header-${index}`,
         flexGrow: 1,
-        height: 2,
+        flexBasis: 0,
+        height: 3,
         backgroundColor: isSelected ? COLORS.selectedBg : isTodayDate ? COLORS.todayBg : isWeekend ? COLORS.weekendBg : COLORS.dayHeaderBg,
         border: true,
         borderStyle: isSelected || isTodayDate ? "double" : "single",
         borderColor: isSelected ? COLORS.selectedFg : isTodayDate ? COLORS.todayFg : COLORS.border,
         flexDirection: "column",
+        justifyContent: "center",
+        alignItems: "center",
       })
 
       const dayNameText = new TextRenderable(this.renderer, {
         id: `day-name-${index}`,
         content: format(day, "EEE"),
         fg: isSelected || isTodayDate ? COLORS.selectedFg : COLORS.dayHeaderFg,
-        alignSelf: "center",
       })
       dayHeader.add(dayNameText)
 
@@ -237,8 +240,6 @@ class GoogleCalendarTUI {
         id: `day-num-${index}`,
         content: String(getDate(day)),
         fg: isSelected || isTodayDate ? COLORS.selectedFg : COLORS.dayHeaderFg,
-        alignSelf: "center",
-        marginTop: 0,
       })
       dayHeader.add(dayNumText)
 
@@ -301,12 +302,14 @@ class GoogleCalendarTUI {
         const dayCell = new BoxRenderable(this.renderer, {
           id: `day-cell-${hour}-${dayIndex}`,
           flexGrow: 1,
+          flexBasis: 0,
           height: 3,
           backgroundColor: isSelected ? COLORS.selectedBg : isWeekend ? COLORS.weekendBg : COLORS.bg,
           border: true,
           borderStyle: "single",
           borderColor: isSelected ? COLORS.selectedFg : COLORS.border,
           padding: 0,
+          overflow: "hidden",
         })
 
         // Show events in this cell
