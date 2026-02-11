@@ -250,8 +250,12 @@ class GoogleCalendarTUI {
       id: "week-scroll",
       flexGrow: 1,
       backgroundColor: "transparent",
-      scrollBarColor: COLORS.scrollThumb,
-      scrollBarBackgroundColor: COLORS.scrollBg,
+      scrollbarOptions: {
+        trackOptions: {
+          foregroundColor: COLORS.scrollThumb,
+          backgroundColor: COLORS.scrollBg,
+        },
+      },
     })
     weekContainer.add(this.weekViewScrollBox)
 
@@ -332,7 +336,7 @@ class GoogleCalendarTUI {
     const currentHour = new Date().getHours()
     const scrollPos = Math.max(0, (currentHour - 2) * 3)
     setTimeout(() => {
-      this.weekViewScrollBox?.scrollTo({ y: scrollPos })
+      this.weekViewScrollBox?.scrollTo({ x: 0, y: scrollPos })
     }, 100)
 
     // Events sidebar
@@ -407,8 +411,12 @@ class GoogleCalendarTUI {
       id: "events-scroll",
       flexGrow: 1,
       backgroundColor: "transparent",
-      scrollBarColor: COLORS.scrollThumb,
-      scrollBarBackgroundColor: COLORS.scrollBg,
+      scrollbarOptions: {
+        trackOptions: {
+          foregroundColor: COLORS.scrollThumb,
+          backgroundColor: COLORS.scrollBg,
+        },
+      },
     })
     this.eventsBox.add(this.eventsScrollBox)
 
