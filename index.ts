@@ -550,7 +550,7 @@ class GoogleCalendarTUI {
 
     // Render calendar items
     const renderCalendarItems = () => {
-      calendarListBox.clear?.() || calendarListBox.getChildren().forEach(c => calendarListBox.remove(c.id))
+      calendarListBox.getChildren().forEach(c => calendarListBox.remove(c.id))
       calendarItems.length = 0
 
       this.calendars.forEach((cal, index) => {
