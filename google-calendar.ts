@@ -19,12 +19,15 @@ import { OAuth2Client } from "google-auth-library"
 import * as fs from "fs/promises"
 import * as path from "path"
 import { homedir } from "os"
-import { startOfMonth, endOfMonth } from "date-fns"
+import { startOfWeek, endOfWeek } from "date-fns"
+import * as http from "http"
+import * as url from "url"
 
 const SCOPES = ["https://www.googleapis.com/auth/calendar.readonly"]
 const CONFIG_DIR = path.join(homedir(), ".config", "lazycal")
 const CREDENTIALS_PATH = path.join(CONFIG_DIR, "credentials.json")
 const TOKEN_PATH = path.join(CONFIG_DIR, "token.json")
+const REDIRECT_PORT = 8080
 
 export interface CalendarEvent {
   id: string
@@ -33,6 +36,7 @@ export interface CalendarEvent {
   time?: string
   description?: string
   location?: string
+  calendarId?: string
   calendarName?: string
 }
 
@@ -42,28 +46,26 @@ export class GoogleCalendarClient {
 
   async initialize(): Promise<boolean> {
     try {
-      // Check if credentials exist
       await fs.access(CREDENTIALS_PATH)
     } catch {
       console.log("Google Calendar credentials not found.")
       console.log(`Please place your credentials.json at: ${CREDENTIALS_PATH}`)
-      console.log("Using sample data instead.")
       return false
     }
 
     try {
       const credentials = JSON.parse(await fs.readFile(CREDENTIALS_PATH, "utf-8"))
-      const { client_secret, client_id, redirect_uris } = credentials.installed
+      const { client_secret, client_id } = credentials.installed
       
-      this.auth = new OAuth2Client(client_id, client_secret, redirect_uris[0])
+      // Use localhost redirect for automatic callback
+      const redirectUri = `http://localhost:${REDIRECT_PORT}/oauth2callback`
+      this.auth = new OAuth2Client(client_id, client_secret, redirectUri)
       
-      // Check for existing token
       try {
         const token = JSON.parse(await fs.readFile(TOKEN_PATH, "utf-8"))
         this.auth.setCredentials(token)
       } catch {
-        // Need to get new token
-        await this.getNewToken()
+        await this.getNewTokenAutomatic()
       }
 
       this.calendar = google.calendar({ version: "v3", auth: this.auth })
@@ -74,78 +76,163 @@ export class GoogleCalendarClient {
     }
   }
 
-  private async getNewToken(): Promise<void> {
+  private async getNewTokenAutomatic(): Promise<void> {
     if (!this.auth) throw new Error("Auth not initialized")
 
     const authUrl = this.auth.generateAuthUrl({
       access_type: "offline",
       scope: SCOPES,
+      redirect_uri: `http://localhost:${REDIRECT_PORT}/oauth2callback`,
     })
 
-    console.log("Authorize this app by visiting this URL:")
-    console.log(authUrl)
-    console.log("\nAfter authorization, you will be redirected to localhost.")
-    console.log("Copy the code from the URL and paste it below:")
+    console.log("\n========================================")
+    console.log("Opening browser for Google authorization...")
+    console.log("========================================\n")
+    
+    // Open browser
+    const { exec } = await import("child_process")
+    const platform = process.platform
+    const cmd = platform === "darwin" ? "open" : platform === "win32" ? "start" : "xdg-open"
+    exec(`${cmd} "${authUrl}"`)
 
-    // Simple prompt for the auth code
-    const code = await this.promptForCode()
+    console.log("If the browser didn't open, visit this URL:")
+    console.log(authUrl)
+    console.log("\nWaiting for authorization...")
+
+    // Start local server to receive callback
+    const code = await this.startLocalServer()
+    
+    console.log("Authorization received! Getting access token...")
     
     const { tokens } = await this.auth.getToken(code)
     this.auth.setCredentials(tokens)
     
-    // Save token for future use
     await fs.mkdir(CONFIG_DIR, { recursive: true })
     await fs.writeFile(TOKEN_PATH, JSON.stringify(tokens))
-    console.log("Token saved successfully!")
+    console.log("✓ Successfully authenticated with Google Calendar!")
   }
 
-  private promptForCode(): Promise<string> {
-    return new Promise((resolve) => {
-      process.stdout.write("Enter the code here: ")
-      process.stdin.once("data", (data) => {
-        resolve(data.toString().trim())
+  private startLocalServer(): Promise<string> {
+    return new Promise((resolve, reject) => {
+      const server = http.createServer(async (req, res) => {
+        try {
+          const parsedUrl = url.parse(req.url || "", true)
+          
+          if (parsedUrl.pathname === "/oauth2callback") {
+            const code = parsedUrl.query.code as string
+            
+            if (code) {
+              // Send success page
+              res.writeHead(200, { "Content-Type": "text/html" })
+              res.end(`
+                <!DOCTYPE html>
+                <html>
+                <head>
+                  <title>LazyCal - Authorization Success</title>
+                  <style>
+                    body {
+                      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+                      display: flex;
+                      justify-content: center;
+                      align-items: center;
+                      height: 100vh;
+                      margin: 0;
+                      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                      color: white;
+                    }
+                    .container {
+                      text-align: center;
+                      padding: 2rem;
+                      background: rgba(255,255,255,0.1);
+                      border-radius: 1rem;
+                      backdrop-filter: blur(10px);
+                    }
+                    h1 { margin: 0 0 1rem 0; }
+                    p { margin: 0; opacity: 0.9; }
+                    .check { font-size: 4rem; margin-bottom: 1rem; }
+                  </style>
+                </head>
+                <body>
+                  <div class="container">
+                    <div class="check">✓</div>
+                    <h1>Authorization Successful!</h1>
+                    <p>You can close this window and return to LazyCal.</p>
+                  </div>
+                </body>
+                </html>
+              `)
+              
+              server.close()
+              resolve(code)
+            } else {
+              res.writeHead(400, { "Content-Type": "text/html" })
+              res.end("<h1>Authorization failed</h1><p>No code received.</p>")
+              server.close()
+              reject(new Error("No authorization code received"))
+            }
+          }
+        } catch (error) {
+          server.close()
+          reject(error)
+        }
       })
+
+      server.listen(REDIRECT_PORT, () => {
+        console.log(`Waiting for OAuth callback on port ${REDIRECT_PORT}...`)
+      })
+
+      // Timeout after 5 minutes
+      setTimeout(() => {
+        server.close()
+        reject(new Error("Authorization timeout"))
+      }, 5 * 60 * 1000)
     })
   }
 
-  async fetchEvents(date: Date): Promise<CalendarEvent[]> {
+  async fetchEventsFromCalendars(date: Date, calendarIds: string[]): Promise<CalendarEvent[]> {
     if (!this.calendar) {
       throw new Error("Calendar not initialized")
     }
 
-    const timeMin = startOfMonth(date).toISOString()
-    const timeMax = endOfMonth(date).toISOString()
+    const timeMin = startOfWeek(date, { weekStartsOn: 0 }).toISOString()
+    const timeMax = endOfWeek(date, { weekStartsOn: 0 }).toISOString()
 
-    try {
-      const response = await this.calendar.events.list({
-        calendarId: "primary",
-        timeMin,
-        timeMax,
-        singleEvents: true,
-        orderBy: "startTime",
-      })
+    const allEvents: CalendarEvent[] = []
 
-      const events = response.data.items || []
-      
-      return events.map(event => {
-        const start = event.start?.dateTime || event.start?.date
-        const eventDate = start ? new Date(start) : new Date()
+    for (const calendarId of calendarIds) {
+      try {
+        const response = await this.calendar.events.list({
+          calendarId,
+          timeMin,
+          timeMax,
+          singleEvents: true,
+          orderBy: "startTime",
+        })
+
+        const events = response.data.items || []
         
-        return {
-          id: event.id || "",
-          title: event.summary || "(No title)",
-          date: eventDate,
-          time: event.start?.dateTime 
-            ? this.formatTime(eventDate)
-            : undefined,
-          description: event.description,
-          location: event.location,
-        }
-      })
-    } catch (error) {
-      console.error("Error fetching events:", error)
-      return []
+        events.forEach(event => {
+          const start = event.start?.dateTime || event.start?.date
+          const eventDate = start ? new Date(start) : new Date()
+          
+          allEvents.push({
+            id: event.id || "",
+            title: event.summary || "(No title)",
+            date: eventDate,
+            time: event.start?.dateTime 
+              ? this.formatTime(eventDate)
+              : undefined,
+            description: event.description,
+            location: event.location,
+            calendarId: calendarId,
+          })
+        })
+      } catch (error) {
+        console.error(`Error fetching events from calendar ${calendarId}:`, error)
+      }
     }
+
+    return allEvents
   }
 
   private formatTime(date: Date): string {
@@ -193,16 +280,21 @@ export function generateSampleEvents(): CalendarEvent[] {
     "Deployment",
   ]
 
-  // Add some random events within the current month and adjacent months
-  for (let i = -30; i < 30; i++) {
-    if (Math.random() > 0.7) {
+  // Add some random events
+  for (let i = -14; i < 14; i++) {
+    if (Math.random() > 0.6) {
       const date = new Date(today)
       date.setDate(today.getDate() + i)
+      
+      // Random hour between 9 and 17
+      const hour = 9 + Math.floor(Math.random() * 8)
+      date.setHours(hour, 0, 0, 0)
+      
       events.push({
         id: `event-${i}`,
         title: titles[Math.floor(Math.random() * titles.length)],
         date: date,
-        time: `${9 + Math.floor(Math.random() * 8)}:00`,
+        time: `${hour.toString().padStart(2, "0")}:00`,
         description: "Sample event description",
       })
     }
