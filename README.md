@@ -2,7 +2,7 @@
 
 A beautiful terminal-based Google Calendar interface built with [OpenTUI](https://github.com/anomalyco/opentui).
 
-![Demo](screenshot.png)
+![Demo](https://raw.githubusercontent.com/pranavkarthik10/lazycal/main/screenshot.png)
 
 ## Features
 

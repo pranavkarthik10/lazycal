@@ -1,6 +1,6 @@
 {
   "name": "lazycal",
-  "version": "1.0.3",
+  "version": "1.0.4",
   "description": "A beautiful terminal-based Google Calendar interface built with OpenTUI",
   "module": "index.ts",
   "bin": {
