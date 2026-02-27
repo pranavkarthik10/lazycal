@@ -48,8 +48,6 @@ export class GoogleCalendarClient {
     try {
       await fs.access(CREDENTIALS_PATH)
     } catch {
-      console.log("Google Calendar credentials not found.")
-      console.log(`Please place your credentials.json at: ${CREDENTIALS_PATH}`)
       return false
     }
 

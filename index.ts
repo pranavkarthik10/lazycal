@@ -182,7 +182,6 @@ class GoogleCalendarTUI {
     const hasCredentials = await this.credentialsExist()
     if (hasCredentials) return false
 
-    console.log("\nGoogle Calendar credentials were not found.")
     const rl = createInterface({
       input: process.stdin,
       output: process.stdout,
