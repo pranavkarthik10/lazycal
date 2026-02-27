@@ -83,6 +83,7 @@ interface LayoutConfig {
 
 interface UiState {
   disabledCalendarIds: string[]
+  credentialOnboardingShown?: boolean
 }
 
 class GoogleCalendarTUI {
@@ -177,10 +178,16 @@ class GoogleCalendarTUI {
   }
 
   private async maybeRunCredentialOnboarding(): Promise<boolean> {
-    if (!process.stdin.isTTY || !process.stdout.isTTY) return false
-
     const hasCredentials = await this.credentialsExist()
     if (hasCredentials) return false
+
+    console.log("Google Calendar credentials not found.")
+    console.log(`Please place your credentials.json at: ${CREDENTIALS_PATH}`)
+
+    if (!process.stdin.isTTY || !process.stdout.isTTY) return false
+
+    const uiState = await this.loadUiState()
+    if (uiState?.credentialOnboardingShown) return false
 
     const rl = createInterface({
       input: process.stdin,
@@ -189,6 +196,7 @@ class GoogleCalendarTUI {
 
     try {
       const answer = await rl.question("Start built-in Google Calendar setup now? [Y/n]: ")
+      await this.markCredentialOnboardingShown()
       const wantsSetup = answer.trim() === "" || answer.trim().toLowerCase().startsWith("y")
       if (!wantsSetup) return false
 
@@ -219,15 +227,30 @@ class GoogleCalendarTUI {
 
   private parseUiState(content: string): UiState | null {
     try {
-      const parsed = JSON.parse(content) as { disabledCalendarIds?: unknown }
+      const parsed = JSON.parse(content) as {
+        disabledCalendarIds?: unknown
+        credentialOnboardingShown?: unknown
+      }
       if (!Array.isArray(parsed.disabledCalendarIds)) {
-        return { disabledCalendarIds: [] }
+        return {
+          disabledCalendarIds: [],
+          credentialOnboardingShown:
+            typeof parsed.credentialOnboardingShown === "boolean"
+              ? parsed.credentialOnboardingShown
+              : undefined,
+        }
       }
 
       const disabledCalendarIds = parsed.disabledCalendarIds.filter(
         (calendarId): calendarId is string => typeof calendarId === "string"
       )
-      return { disabledCalendarIds }
+      return {
+        disabledCalendarIds,
+        credentialOnboardingShown:
+          typeof parsed.credentialOnboardingShown === "boolean"
+            ? parsed.credentialOnboardingShown
+            : undefined,
+      }
     } catch {
       return null
     }
@@ -248,14 +271,43 @@ class GoogleCalendarTUI {
       .map(calendar => calendar.id)
 
     try {
+      const existingState = (await this.loadUiState()) || { disabledCalendarIds: [] }
       await mkdir(CONFIG_DIR, { recursive: true })
       await writeFile(
         UI_STATE_PATH,
-        JSON.stringify({ disabledCalendarIds } satisfies UiState, null, 2),
+        JSON.stringify(
+          {
+            disabledCalendarIds,
+            credentialOnboardingShown: existingState.credentialOnboardingShown,
+          } satisfies UiState,
+          null,
+          2
+        ),
         "utf-8"
       )
     } catch (error) {
       console.error("Unable to save UI state:", error)
+    }
+  }
+
+  private async markCredentialOnboardingShown() {
+    try {
+      const existingState = (await this.loadUiState()) || { disabledCalendarIds: [] }
+      await mkdir(CONFIG_DIR, { recursive: true })
+      await writeFile(
+        UI_STATE_PATH,
+        JSON.stringify(
+          {
+            disabledCalendarIds: existingState.disabledCalendarIds,
+            credentialOnboardingShown: true,
+          } satisfies UiState,
+          null,
+          2
+        ),
+        "utf-8"
+      )
+    } catch (error) {
+      console.error("Unable to save onboarding state:", error)
     }
   }
 
