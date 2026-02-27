@@ -22,6 +22,10 @@ import {
   startOfWeek,
   subMonths,
 } from "date-fns"
+import { access } from "fs/promises"
+import { homedir } from "os"
+import { join } from "path"
+import { createInterface } from "readline/promises"
 import { GoogleCalendarClient, generateSampleEvents, type CalendarEvent } from "./google-calendar"
 
 const COLORS = {
@@ -48,6 +52,7 @@ const COLORS = {
 
 const HOURS = Array.from({ length: 24 }, (_, i) => i)
 const TIME_COLUMN_WIDTH = 7
+const CREDENTIALS_PATH = join(homedir(), ".config", "lazycal", "credentials.json")
 
 type ViewMode = "day" | "week" | "month"
 
@@ -100,18 +105,16 @@ class GoogleCalendarTUI {
     console.log("Checking for Google Calendar credentials...")
     this.isGoogleConnected = await this.googleClient.initialize()
 
+    if (!this.isGoogleConnected) {
+      const ranSetupOnboarding = await this.maybeRunCredentialOnboarding()
+      if (ranSetupOnboarding) {
+        console.log("\nRe-checking Google Calendar credentials...")
+        this.isGoogleConnected = await this.googleClient.initialize()
+      }
+    }
+
     if (this.isGoogleConnected) {
-      console.log("Connected to Google Calendar!")
-      const availableCalendars = await this.googleClient.listCalendars()
-      this.calendars = availableCalendars.map((calendar, index) => ({
-        id: calendar.id,
-        name: calendar.name,
-        color: ["#4285F4", "#EA4335", "#FBBC04", "#34A853", "#9AA0A6", "#673AB7"][index % 6],
-        enabled: true,
-      }))
-      this.selectedCalendarIds = this.calendars.map(calendar => calendar.id)
-      console.log(`Found ${this.calendars.length} calendars`)
-      await this.loadEventsIfNeeded(true)
+      await this.loadCalendarsAndEvents()
     } else {
       console.log("Using sample data. Add credentials to use real Google Calendar.")
     }
@@ -126,6 +129,71 @@ class GoogleCalendarTUI {
     this.setupResizeHandling()
     this.createLayout()
     this.renderer.requestRender()
+  }
+
+  private async loadCalendarsAndEvents() {
+    console.log("Connected to Google Calendar!")
+    const availableCalendars = await this.googleClient.listCalendars()
+    this.calendars = availableCalendars.map((calendar, index) => ({
+      id: calendar.id,
+      name: calendar.name,
+      color: ["#4285F4", "#EA4335", "#FBBC04", "#34A853", "#9AA0A6", "#673AB7"][index % 6],
+      enabled: true,
+    }))
+    this.selectedCalendarIds = this.calendars.map(calendar => calendar.id)
+    console.log(`Found ${this.calendars.length} calendars`)
+    await this.loadEventsIfNeeded(true)
+  }
+
+  private async credentialsExist(): Promise<boolean> {
+    try {
+      await access(CREDENTIALS_PATH)
+      return true
+    } catch {
+      return false
+    }
+  }
+
+  private async maybeRunCredentialOnboarding(): Promise<boolean> {
+    if (!process.stdin.isTTY || !process.stdout.isTTY) return false
+
+    const hasCredentials = await this.credentialsExist()
+    if (hasCredentials) return false
+
+    console.log("\nGoogle Calendar credentials were not found.")
+    const rl = createInterface({
+      input: process.stdin,
+      output: process.stdout,
+    })
+
+    try {
+      const answer = await rl.question("Start built-in Google Calendar setup now? [Y/n]: ")
+      const wantsSetup = answer.trim() === "" || answer.trim().toLowerCase().startsWith("y")
+      if (!wantsSetup) return false
+
+      console.log("\nGoogle Calendar setup:")
+      console.log("1) Open https://console.cloud.google.com/")
+      console.log("2) Enable Google Calendar API")
+      console.log("3) Create OAuth 2.0 Client ID (Desktop app)")
+      console.log(`4) Save downloaded JSON to: ${CREDENTIALS_PATH}`)
+      console.log("5) Press Enter below when done")
+
+      while (true) {
+        const confirm = await rl.question("Press Enter when ready, or type 'skip' to continue with sample data: ")
+        if (confirm.trim().toLowerCase() === "skip") {
+          return false
+        }
+
+        if (await this.credentialsExist()) {
+          console.log("credentials.json detected.")
+          return true
+        }
+
+        console.log(`credentials.json not found at ${CREDENTIALS_PATH}`)
+      }
+    } finally {
+      rl.close()
+    }
   }
 
   private setupResizeHandling() {

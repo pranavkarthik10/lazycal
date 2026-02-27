@@ -34,7 +34,7 @@ bun install
 bun run start
 ```
 
-On first launch, LazyCal starts immediately with sample events if Google credentials are missing. No setup script is required for this sample-data mode.
+On first launch without credentials, LazyCal offers built-in guided onboarding for Google Calendar setup. You can skip anytime and continue with sample events.
 
 ### Connect to Google Calendar
 
@@ -56,19 +56,13 @@ To use real Google Calendar data:
    mkdir -p ~/.config/lazycal
    cp /path/to/downloaded/credentials.json ~/.config/lazycal/
    ```
-   
-   Or run the setup script:
-   ```bash
-   bash setup-google-calendar.sh
-   ```
-   The setup script is optional; it only helps place credential files in the expected path.
 
 4. **Run the app:**
    ```bash
    bun run start
    ```
    
-   On first run, a browser window will open for OAuth authentication.
+   If credentials are missing, the app shows built-in onboarding steps and waits for `credentials.json`. After credentials are present, OAuth opens in your browser on first auth.
 
 ## Keyboard Shortcuts
 
@@ -94,7 +88,6 @@ lazycal/
 ├── index.ts              # Main TUI application
 ├── google-calendar.ts    # Google Calendar API integration
 ├── package.json          # Project dependencies
-├── setup-google-calendar.sh  # Setup helper script
 └── README.md            # This file
 ```
 
