@@ -246,10 +246,12 @@ class GoogleCalendarTUI {
   private calendars: CalendarConfig[] = []
   private selectedCalendarIds: string[] = []
   private rootBox: BoxRenderable | null = null
+  private timeGridScrollBox: ScrollBoxRenderable | null = null
   private eventsScrollBox: ScrollBoxRenderable | null = null
   private eventsBox: BoxRenderable | null = null
   private resizeHandler: (() => void) | null = null
   private sidebarEnabled = true
+  private pendingTimeGridScrollTop: number | null = null
   private themeName: ThemeName = DEFAULT_THEME_NAME
 
   private get theme(): ThemeDefinition {
@@ -479,7 +481,7 @@ class GoogleCalendarTUI {
 
   private setupResizeHandling() {
     this.resizeHandler = () => {
-      void this.refreshCalendar()
+      void this.refreshCalendar(false, true)
     }
     process.stdout.on("resize", this.resizeHandler)
   }
@@ -514,6 +516,70 @@ class GoogleCalendarTUI {
       const eventHour = this.parseEventHour(event.time)
       return eventHour !== null && eventHour === hour
     })
+  }
+
+  private getTimedEventHoursForDates(dates: Date[]): number[] {
+    return dates.flatMap(date =>
+      this.getEventsForDate(date)
+        .map(event => (event.time ? this.parseEventHour(event.time) : null))
+        .filter((hour): hour is number => hour !== null)
+    )
+  }
+
+  private getVisibleTimeGridHourCount(): number {
+    const terminalHeight = Math.max(24, process.stdout.rows || 40)
+    const reservedRows = 10
+    return Math.max(4, Math.floor((terminalHeight - reservedRows) / TIME_GRID_ROW_HEIGHT))
+  }
+
+  private getAutoTimeGridScrollTop(focusHour?: number): number {
+    const layout = this.getLayoutConfig()
+    const visibleDays = this.getVisibleDays(layout)
+    const eventHours = this.getTimedEventHoursForDates(visibleDays)
+    const visibleHourCount = this.getVisibleTimeGridHourCount()
+
+    let startHour: number
+
+    if (typeof focusHour === "number") {
+      startHour = focusHour - Math.floor(visibleHourCount / 2)
+    } else if (eventHours.length > 0) {
+      const minHour = Math.min(...eventHours)
+      const maxHour = Math.max(...eventHours)
+      const span = maxHour - minHour + 1
+
+      if (span >= visibleHourCount) {
+        startHour = minHour - 1
+      } else {
+        startHour = minHour - Math.floor((visibleHourCount - span) / 2)
+      }
+    } else {
+      startHour = new Date().getHours() - Math.floor(visibleHourCount / 2)
+    }
+
+    return Math.max(0, Math.min(HOURS.length - 1, startHour)) * TIME_GRID_ROW_HEIGHT
+  }
+
+  private async handleCalendarCellClick(date: Date, events: CalendarEvent[]) {
+    const dateChanged = !isSameDay(this.selectedDate, date)
+    const clickedIntoEvent = events.length > 0
+
+    this.selectedDate = date
+    this.currentDate = date
+    this.weekStart = startOfWeek(this.selectedDate, { weekStartsOn: 0 })
+
+    if (dateChanged) {
+      if (this.viewMode !== "month") {
+        this.pendingTimeGridScrollTop = this.timeGridScrollBox?.scrollTop ?? this.pendingTimeGridScrollTop
+      }
+      await this.refreshCalendar()
+    } else {
+      this.updateEventsList()
+      this.renderer.requestRender()
+    }
+
+    if (clickedIntoEvent) {
+      this.showEventDetails(events[0])
+    }
   }
 
   private getGridEventColor(daySelected: boolean, dayIsToday: boolean, calendarColor: string | undefined): string {
@@ -820,6 +886,7 @@ class GoogleCalendarTUI {
         },
       },
     })
+    this.timeGridScrollBox = hoursScroll
     container.add(hoursScroll)
 
     HOURS.forEach(hour => {
@@ -881,6 +948,9 @@ class GoogleCalendarTUI {
           paddingLeft: 0,
           paddingRight: 0,
           overflow: "hidden",
+          onMouseDown: () => {
+            void this.handleCalendarCellClick(day, hourEvents)
+          },
         })
 
         if (eventText) {
@@ -899,15 +969,15 @@ class GoogleCalendarTUI {
       hoursScroll.add(hourRow)
     })
 
-    const currentHour = new Date().getHours()
-    const visibleStartHour = HOURS[0] ?? 0
-    const hourOffset = Math.max(0, currentHour - visibleStartHour - 1)
+    const scrollTop = this.pendingTimeGridScrollTop ?? this.getAutoTimeGridScrollTop()
+    this.pendingTimeGridScrollTop = null
     setTimeout(() => {
-      hoursScroll.scrollTo({ x: 0, y: hourOffset * TIME_GRID_ROW_HEIGHT })
+      hoursScroll.scrollTo({ x: 0, y: scrollTop })
     }, 100)
   }
 
   private createMonthGrid(container: BoxRenderable, layout: LayoutConfig) {
+    this.timeGridScrollBox = null
     const visibleDayIndices = this.getVisibleMonthDayIndices(layout)
 
     const weekdayHeader = new BoxRenderable(this.renderer, {
@@ -990,6 +1060,9 @@ class GoogleCalendarTUI {
           overflow: "hidden",
           paddingLeft: 0,
           paddingRight: 0,
+          onMouseDown: () => {
+            void this.handleCalendarCellClick(day, dayEvents)
+          },
         })
 
         const numberText = new TextRenderable(this.renderer, {
@@ -1170,13 +1243,18 @@ class GoogleCalendarTUI {
     return `${text.slice(0, maxLength - 1)}~`
   }
 
-  private async refreshCalendar(forceFetch = false) {
+  private async refreshCalendar(forceFetch = false, preserveTimeGridScroll = false) {
+    if (preserveTimeGridScroll && this.timeGridScrollBox && this.viewMode !== "month") {
+      this.pendingTimeGridScrollTop = this.timeGridScrollBox.scrollTop
+    }
+
     await this.loadEventsIfNeeded(forceFetch)
 
     if (this.rootBox) {
       this.rootBox.destroyRecursively()
       this.rootBox = null
     }
+    this.timeGridScrollBox = null
     this.createLayout()
     this.renderer.requestRender()
   }
@@ -1302,15 +1380,15 @@ class GoogleCalendarTUI {
 
   private async refreshEvents() {
     if (!this.isGoogleConnected) {
-      await this.refreshCalendar()
+      await this.refreshCalendar(false, true)
       return
     }
-    await this.refreshCalendar(true)
+    await this.refreshCalendar(true, true)
   }
 
   private async toggleSidebar() {
     this.sidebarEnabled = !this.sidebarEnabled
-    await this.refreshCalendar()
+    await this.refreshCalendar(false, true)
   }
 
   private showHelpOverlay() {
@@ -1362,7 +1440,7 @@ class GoogleCalendarTUI {
       "Refresh events: r",
       "Toggle calendars: c",
       "Toggle sidebar: s",
-      "Event details: click event card in sidebar",
+      "Event details: click event in calendar or sidebar",
       "Quit: q",
       "Close this help: ?, esc, or enter",
     ]
@@ -1575,7 +1653,7 @@ class GoogleCalendarTUI {
         this.selectedCalendarIds = this.calendars.filter(calendar => calendar.enabled).map(calendar => calendar.id)
         await this.persistUiState()
         this.loadedRange = null
-        await this.refreshCalendar(true)
+        await this.refreshCalendar(true, true)
       } else {
         this.calendars.forEach((calendar, index) => {
           calendar.enabled = originalEnabledState[index] ?? calendar.enabled
@@ -1717,7 +1795,7 @@ class GoogleCalendarTUI {
       if (applyChanges) {
         this.applyTheme(themeNames[selectedIndex] ?? DEFAULT_THEME_NAME)
         await this.persistUiState()
-        await this.refreshCalendar()
+        await this.refreshCalendar(false, true)
       } else {
         this.applyTheme(originalThemeName)
         this.renderer.requestRender()
