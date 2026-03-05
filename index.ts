@@ -30,29 +30,6 @@ import { join } from "path"
 import { createInterface } from "readline/promises"
 import { GoogleCalendarClient, generateSampleEvents, type CalendarEvent } from "./google-calendar"
 
-const COLORS = {
-  bg: "#1E1E1E",
-  fg: "#E2E8F0",
-  headerBg: "#2D3748",
-  headerFg: "#F7FAFC",
-  dayHeaderBg: "#4A5568",
-  dayHeaderFg: "#CBD5E0",
-  selectedBg: "#3182CE",
-  selectedFg: "#FFFFFF",
-  todayBg: "#2C5282",
-  todayFg: "#FFFFFF",
-  otherMonthFg: "#718096",
-  weekendBg: "#2D3748",
-  border: "#4A5568",
-  eventDot: "#48BB78",
-  scrollBg: "#2D3748",
-  scrollThumb: "#4A5568",
-  overlayBg: "#0F172A",
-  synced: "#48BB78",
-  offline: "#F6AD55",
-  timeColumn: "#1A202C",
-}
-
 const HOURS = Array.from({ length: 24 }, (_, i) => i)
 const TIME_COLUMN_WIDTH = 7
 const TIME_GRID_ROW_HEIGHT = 3
@@ -61,6 +38,175 @@ const CREDENTIALS_PATH = join(CONFIG_DIR, "credentials.json")
 const UI_STATE_PATH = join(CONFIG_DIR, "ui-state.json")
 
 type ViewMode = "day" | "week" | "month"
+type ThemeName = "graphite" | "mono" | "amber" | "blue" | "contrast"
+
+interface ThemeColors {
+  bg: string
+  fg: string
+  headerBg: string
+  headerFg: string
+  dayHeaderBg: string
+  dayHeaderFg: string
+  selectedBg: string
+  selectedFg: string
+  todayBg: string
+  todayFg: string
+  otherMonthFg: string
+  weekendBg: string
+  border: string
+  eventDot: string
+  scrollBg: string
+  scrollThumb: string
+  overlayBg: string
+  synced: string
+  offline: string
+  timeColumn: string
+}
+
+interface ThemeDefinition {
+  label: string
+  colors: ThemeColors
+  calendarColors: string[]
+}
+
+const THEMES: Record<ThemeName, ThemeDefinition> = {
+  graphite: {
+    label: "Graphite",
+    colors: {
+      bg: "#141414",
+      fg: "#E8E6E3",
+      headerBg: "#1C1C1C",
+      headerFg: "#F6F3EE",
+      dayHeaderBg: "#232323",
+      dayHeaderFg: "#B8B4AE",
+      selectedBg: "#4C6178",
+      selectedFg: "#F8FAFC",
+      todayBg: "#2D3339",
+      todayFg: "#F3F4F6",
+      otherMonthFg: "#6F6A64",
+      weekendBg: "#191919",
+      border: "#343434",
+      eventDot: "#8DA399",
+      scrollBg: "#1C1C1C",
+      scrollThumb: "#4A4A4A",
+      overlayBg: "#0B0B0B",
+      synced: "#7BA37F",
+      offline: "#B38A5A",
+      timeColumn: "#101010",
+    },
+    calendarColors: ["#9FB3C8", "#C48F88", "#B9A06C", "#7FA08A", "#B0A7BF", "#8D959D"],
+  },
+  mono: {
+    label: "Mono",
+    colors: {
+      bg: "#111111",
+      fg: "#F1F1F1",
+      headerBg: "#171717",
+      headerFg: "#FCFCFC",
+      dayHeaderBg: "#1D1D1D",
+      dayHeaderFg: "#D1D1D1",
+      selectedBg: "#5A5A5A",
+      selectedFg: "#FFFFFF",
+      todayBg: "#2A2A2A",
+      todayFg: "#F5F5F5",
+      otherMonthFg: "#838383",
+      weekendBg: "#151515",
+      border: "#3A3A3A",
+      eventDot: "#A0A0A0",
+      scrollBg: "#1A1A1A",
+      scrollThumb: "#575757",
+      overlayBg: "#090909",
+      synced: "#C5C5C5",
+      offline: "#8F8F8F",
+      timeColumn: "#0E0E0E",
+    },
+    calendarColors: ["#E0E0E0", "#C7C7C7", "#AEAEAE", "#959595", "#7C7C7C", "#636363"],
+  },
+  amber: {
+    label: "Amber",
+    colors: {
+      bg: "#161311",
+      fg: "#F0E8DE",
+      headerBg: "#211B17",
+      headerFg: "#FFF8F1",
+      dayHeaderBg: "#2B221C",
+      dayHeaderFg: "#D6C2AE",
+      selectedBg: "#8C5A29",
+      selectedFg: "#FFF8F1",
+      todayBg: "#50331D",
+      todayFg: "#FFE5C1",
+      otherMonthFg: "#857160",
+      weekendBg: "#1B1512",
+      border: "#4A372B",
+      eventDot: "#C28B48",
+      scrollBg: "#211B17",
+      scrollThumb: "#6C523D",
+      overlayBg: "#0C0907",
+      synced: "#9BB06B",
+      offline: "#D29A52",
+      timeColumn: "#120E0B",
+    },
+    calendarColors: ["#D6A66A", "#C7795F", "#E5C07B", "#8FA76A", "#B08FC7", "#7BA0B5"],
+  },
+  blue: {
+    label: "Blue",
+    colors: {
+      bg: "#1E1E1E",
+      fg: "#E2E8F0",
+      headerBg: "#2D3748",
+      headerFg: "#F7FAFC",
+      dayHeaderBg: "#4A5568",
+      dayHeaderFg: "#CBD5E0",
+      selectedBg: "#3182CE",
+      selectedFg: "#FFFFFF",
+      todayBg: "#2C5282",
+      todayFg: "#FFFFFF",
+      otherMonthFg: "#718096",
+      weekendBg: "#2D3748",
+      border: "#4A5568",
+      eventDot: "#48BB78",
+      scrollBg: "#2D3748",
+      scrollThumb: "#4A5568",
+      overlayBg: "#0F172A",
+      synced: "#48BB78",
+      offline: "#F6AD55",
+      timeColumn: "#1A202C",
+    },
+    calendarColors: ["#63B3ED", "#F56565", "#F6E05E", "#68D391", "#A0AEC0", "#9F7AEA"],
+  },
+  contrast: {
+    label: "High Contrast",
+    colors: {
+      bg: "#000000",
+      fg: "#FFFFFF",
+      headerBg: "#0A0A0A",
+      headerFg: "#FFFFFF",
+      dayHeaderBg: "#121212",
+      dayHeaderFg: "#FFFFFF",
+      selectedBg: "#FFFFFF",
+      selectedFg: "#000000",
+      todayBg: "#2E2E2E",
+      todayFg: "#FFFFFF",
+      otherMonthFg: "#B0B0B0",
+      weekendBg: "#090909",
+      border: "#FFFFFF",
+      eventDot: "#FFFFFF",
+      scrollBg: "#111111",
+      scrollThumb: "#FFFFFF",
+      overlayBg: "#000000",
+      synced: "#FFFFFF",
+      offline: "#D9D9D9",
+      timeColumn: "#050505",
+    },
+    calendarColors: ["#FFFFFF", "#FFD166", "#7FDBFF", "#FF7F7F", "#BDB2FF", "#B8F2E6"],
+  },
+}
+
+const DEFAULT_THEME_NAME: ThemeName = "graphite"
+
+function isThemeName(value: unknown): value is ThemeName {
+  return typeof value === "string" && value in THEMES
+}
 
 interface CalendarConfig {
   id: string
@@ -84,6 +230,7 @@ interface LayoutConfig {
 interface UiState {
   disabledCalendarIds: string[]
   credentialOnboardingShown?: boolean
+  themeName?: ThemeName
 }
 
 class GoogleCalendarTUI {
@@ -103,6 +250,15 @@ class GoogleCalendarTUI {
   private eventsBox: BoxRenderable | null = null
   private resizeHandler: (() => void) | null = null
   private sidebarEnabled = true
+  private themeName: ThemeName = DEFAULT_THEME_NAME
+
+  private get theme(): ThemeDefinition {
+    return THEMES[this.themeName]
+  }
+
+  private get colors(): ThemeColors {
+    return this.theme.colors
+  }
 
   constructor() {
     this.currentDate = new Date()
@@ -113,6 +269,11 @@ class GoogleCalendarTUI {
   }
 
   async init() {
+    const uiState = await this.loadUiState()
+    if (uiState?.themeName) {
+      this.themeName = uiState.themeName
+    }
+
     console.log("Checking for Google Calendar credentials...")
     this.isGoogleConnected = await this.googleClient.initialize()
 
@@ -135,7 +296,7 @@ class GoogleCalendarTUI {
       targetFps: 30,
     })
 
-    this.renderer.setBackgroundColor(COLORS.bg)
+    this.renderer.setBackgroundColor(this.colors.bg)
     this.setupKeyboardHandling()
     this.setupResizeHandling()
     this.createLayout()
@@ -151,7 +312,7 @@ class GoogleCalendarTUI {
     this.calendars = availableCalendars.map((calendar, index) => ({
       id: calendar.id,
       name: calendar.name,
-      color: ["#4285F4", "#EA4335", "#FBBC04", "#34A853", "#9AA0A6", "#673AB7"][index % 6],
+      color: this.theme.calendarColors[index % this.theme.calendarColors.length],
       enabled: !disabledCalendarIds.has(calendar.id),
     }))
 
@@ -230,6 +391,7 @@ class GoogleCalendarTUI {
       const parsed = JSON.parse(content) as {
         disabledCalendarIds?: unknown
         credentialOnboardingShown?: unknown
+        themeName?: unknown
       }
       if (!Array.isArray(parsed.disabledCalendarIds)) {
         return {
@@ -238,6 +400,7 @@ class GoogleCalendarTUI {
             typeof parsed.credentialOnboardingShown === "boolean"
               ? parsed.credentialOnboardingShown
               : undefined,
+          themeName: isThemeName(parsed.themeName) ? parsed.themeName : undefined,
         }
       }
 
@@ -250,6 +413,7 @@ class GoogleCalendarTUI {
           typeof parsed.credentialOnboardingShown === "boolean"
             ? parsed.credentialOnboardingShown
             : undefined,
+        themeName: isThemeName(parsed.themeName) ? parsed.themeName : undefined,
       }
     } catch {
       return null
@@ -279,6 +443,7 @@ class GoogleCalendarTUI {
           {
             disabledCalendarIds,
             credentialOnboardingShown: existingState.credentialOnboardingShown,
+            themeName: this.themeName,
           } satisfies UiState,
           null,
           2
@@ -300,6 +465,7 @@ class GoogleCalendarTUI {
           {
             disabledCalendarIds: existingState.disabledCalendarIds,
             credentialOnboardingShown: true,
+            themeName: existingState.themeName ?? this.themeName,
           } satisfies UiState,
           null,
           2
@@ -351,10 +517,21 @@ class GoogleCalendarTUI {
   }
 
   private getGridEventColor(daySelected: boolean, dayIsToday: boolean, calendarColor: string | undefined): string {
-    if (daySelected || dayIsToday) return COLORS.selectedFg
-    if (!calendarColor) return COLORS.eventDot
-    if (calendarColor.toLowerCase() === COLORS.bg.toLowerCase()) return COLORS.eventDot
+    if (daySelected || dayIsToday) return this.colors.selectedFg
+    if (!calendarColor) return this.colors.eventDot
+    if (calendarColor.toLowerCase() === this.colors.bg.toLowerCase()) return this.colors.eventDot
     return calendarColor
+  }
+
+  private applyTheme(themeName: ThemeName) {
+    this.themeName = themeName
+    this.calendars = this.calendars.map((calendar, index) => ({
+      ...calendar,
+      color: this.theme.calendarColors[index % this.theme.calendarColors.length],
+    }))
+    if (this.renderer) {
+      this.renderer.setBackgroundColor(this.colors.bg)
+    }
   }
 
   private getGridEventLabelMaxLength(layout: LayoutConfig, visibleDayCount: number): number {
@@ -476,17 +653,18 @@ class GoogleCalendarTUI {
     }
 
     const modeText = `mode:${this.viewMode}`
+    const themeText = `theme:${this.themeName}`
     const statusText = this.isGoogleConnected
       ? `google:${this.calendars.filter(calendar => calendar.enabled).length}/${this.calendars.length}`
       : "sample-data"
 
     const widthText = this.viewMode === "day" ? "" : ` days:${layout.visibleDayCount}/7`
-    return this.truncate(`${dateText}  ${modeText}  ${statusText}${widthText}`, layout.terminalWidth - 4)
+    return this.truncate(`${dateText}  ${modeText}  ${themeText}  ${statusText}${widthText}`, layout.terminalWidth - 4)
   }
 
   private buildCommandHint(layout: LayoutConfig): string {
-    const full = "keys: d/w/m view  left/right day  up/down week  h/l month  t today  ? help  q quit"
-    const compact = "keys: d/w/m left/right up/down h/l t ? q"
+    const full = "keys: d/w/m view  left/right day  up/down week  h/l month  p theme  t today  ? help  q quit"
+    const compact = "keys: d/w/m left/right up/down h/l p t ? q"
     return this.truncate(layout.terminalWidth >= 132 ? full : compact, layout.terminalWidth - 4)
   }
 
@@ -498,7 +676,7 @@ class GoogleCalendarTUI {
       width: "100%",
       height: "100%",
       flexDirection: "column",
-      backgroundColor: COLORS.bg,
+      backgroundColor: this.colors.bg,
     })
     this.renderer.root.add(this.rootBox)
 
@@ -507,7 +685,7 @@ class GoogleCalendarTUI {
       height: 3,
       flexShrink: 0,
       flexDirection: "column",
-      backgroundColor: COLORS.headerBg,
+      backgroundColor: this.colors.headerBg,
       paddingLeft: 1,
       paddingRight: 1,
       justifyContent: "flex-start",
@@ -517,7 +695,7 @@ class GoogleCalendarTUI {
     const titleText = new TextRenderable(this.renderer, {
       id: "header-title",
       content: this.buildHeaderTitle(layout),
-      fg: COLORS.headerFg,
+      fg: this.colors.headerFg,
       alignSelf: "center",
       marginBottom: 1,
     })
@@ -526,7 +704,7 @@ class GoogleCalendarTUI {
     const commandHint = new TextRenderable(this.renderer, {
       id: "header-command-hint",
       content: this.buildCommandHint(layout),
-      fg: COLORS.dayHeaderFg,
+      fg: this.colors.dayHeaderFg,
       alignSelf: "center",
     })
     headerBox.add(commandHint)
@@ -584,17 +762,17 @@ class GoogleCalendarTUI {
       width: TIME_COLUMN_WIDTH,
       height: 3,
       flexShrink: 0,
-      backgroundColor: COLORS.timeColumn,
+      backgroundColor: this.colors.timeColumn,
       border: true,
       borderStyle: "single",
-      borderColor: COLORS.border,
+      borderColor: this.colors.border,
       justifyContent: "center",
       alignItems: "center",
     })
     const timeText = new TextRenderable(this.renderer, {
       id: "time-grid-header-time-text",
       content: "Time",
-      fg: COLORS.otherMonthFg,
+      fg: this.colors.otherMonthFg,
     })
     timeHeader.add(timeText)
     headerRow.add(timeHeader)
@@ -609,15 +787,15 @@ class GoogleCalendarTUI {
         flexBasis: 0,
         height: 3,
         backgroundColor: selected
-          ? COLORS.selectedBg
+          ? this.colors.selectedBg
           : today
-            ? COLORS.todayBg
+            ? this.colors.todayBg
             : weekend
-              ? COLORS.weekendBg
-              : COLORS.dayHeaderBg,
+              ? this.colors.weekendBg
+              : this.colors.dayHeaderBg,
         border: true,
         borderStyle: selected || today ? "double" : "single",
-        borderColor: selected ? COLORS.selectedFg : today ? COLORS.todayFg : COLORS.border,
+        borderColor: selected ? this.colors.selectedFg : today ? this.colors.todayFg : this.colors.border,
         justifyContent: "center",
         alignItems: "center",
       })
@@ -625,7 +803,7 @@ class GoogleCalendarTUI {
       const headerText = new TextRenderable(this.renderer, {
         id: `time-grid-day-header-text-${index}`,
         content: `${format(day, "EEE")} ${getDate(day)}`,
-        fg: selected || today ? COLORS.selectedFg : COLORS.dayHeaderFg,
+        fg: selected || today ? this.colors.selectedFg : this.colors.dayHeaderFg,
       })
       dayHeader.add(headerText)
       headerRow.add(dayHeader)
@@ -637,8 +815,8 @@ class GoogleCalendarTUI {
       backgroundColor: "transparent",
       scrollbarOptions: {
         trackOptions: {
-          foregroundColor: COLORS.scrollThumb,
-          backgroundColor: COLORS.scrollBg,
+          foregroundColor: this.colors.scrollThumb,
+          backgroundColor: this.colors.scrollBg,
         },
       },
     })
@@ -659,16 +837,16 @@ class GoogleCalendarTUI {
         width: TIME_COLUMN_WIDTH,
         height: TIME_GRID_ROW_HEIGHT,
         flexShrink: 0,
-        backgroundColor: COLORS.timeColumn,
+        backgroundColor: this.colors.timeColumn,
         border: true,
         borderStyle: "single",
-        borderColor: COLORS.border,
+        borderColor: this.colors.border,
         justifyContent: "center",
       })
       const labelText = new TextRenderable(this.renderer, {
         id: `time-grid-hour-label-text-${hour}`,
         content: `${hour.toString().padStart(2, "0")}:00`,
-        fg: COLORS.otherMonthFg,
+        fg: this.colors.otherMonthFg,
         alignSelf: "center",
       })
       timeLabel.add(labelText)
@@ -696,10 +874,10 @@ class GoogleCalendarTUI {
           flexGrow: 1,
           flexBasis: 0,
           height: TIME_GRID_ROW_HEIGHT,
-          backgroundColor: selected ? COLORS.selectedBg : today ? COLORS.todayBg : weekend ? COLORS.weekendBg : COLORS.bg,
+          backgroundColor: selected ? this.colors.selectedBg : today ? this.colors.todayBg : weekend ? this.colors.weekendBg : this.colors.bg,
           border: true,
           borderStyle: "single",
-          borderColor: selected ? COLORS.selectedFg : COLORS.border,
+          borderColor: selected ? this.colors.selectedFg : this.colors.border,
           paddingLeft: 0,
           paddingRight: 0,
           overflow: "hidden",
@@ -751,15 +929,15 @@ class GoogleCalendarTUI {
         height: 3,
         border: true,
         borderStyle: "single",
-        borderColor: COLORS.border,
-        backgroundColor: dayIndex === 0 || dayIndex === 6 ? COLORS.weekendBg : COLORS.dayHeaderBg,
+        borderColor: this.colors.border,
+        backgroundColor: dayIndex === 0 || dayIndex === 6 ? this.colors.weekendBg : this.colors.dayHeaderBg,
         justifyContent: "center",
         alignItems: "center",
       })
       const text = new TextRenderable(this.renderer, {
         id: `month-weekday-header-text-${index}`,
         content: dayName,
-        fg: COLORS.dayHeaderFg,
+        fg: this.colors.dayHeaderFg,
       })
       headerCell.add(text)
       weekdayHeader.add(headerCell)
@@ -771,8 +949,8 @@ class GoogleCalendarTUI {
       backgroundColor: "transparent",
       scrollbarOptions: {
         trackOptions: {
-          foregroundColor: COLORS.scrollThumb,
-          backgroundColor: COLORS.scrollBg,
+          foregroundColor: this.colors.scrollThumb,
+          backgroundColor: this.colors.scrollBg,
         },
       },
     })
@@ -807,8 +985,8 @@ class GoogleCalendarTUI {
           height: 5,
           border: true,
           borderStyle: selected || today ? "double" : "single",
-          borderColor: selected ? COLORS.selectedFg : today ? COLORS.todayFg : COLORS.border,
-          backgroundColor: selected ? COLORS.selectedBg : inMonth ? COLORS.bg : COLORS.weekendBg,
+          borderColor: selected ? this.colors.selectedFg : today ? this.colors.todayFg : this.colors.border,
+          backgroundColor: selected ? this.colors.selectedBg : inMonth ? this.colors.bg : this.colors.weekendBg,
           overflow: "hidden",
           paddingLeft: 0,
           paddingRight: 0,
@@ -817,12 +995,12 @@ class GoogleCalendarTUI {
         const numberText = new TextRenderable(this.renderer, {
           id: `month-day-number-${row}-${index}`,
           content: String(getDate(day)),
-          fg: selected ? COLORS.selectedFg : inMonth ? COLORS.fg : COLORS.otherMonthFg,
+          fg: selected ? this.colors.selectedFg : inMonth ? this.colors.fg : this.colors.otherMonthFg,
         })
         cell.add(numberText)
 
         dayEvents.forEach((event, eventIndex) => {
-          const color = this.calendars.find(calendar => calendar.id === event.calendarId)?.color || COLORS.eventDot
+          const color = this.calendars.find(calendar => calendar.id === event.calendarId)?.color || this.colors.eventDot
           const eventLine = new TextRenderable(this.renderer, {
             id: `month-day-event-${row}-${index}-${eventIndex}`,
             content: this.truncate(event.title, 12),
@@ -847,8 +1025,8 @@ class GoogleCalendarTUI {
       flexDirection: "column",
       border: true,
       borderStyle: "single",
-      borderColor: COLORS.border,
-      backgroundColor: COLORS.headerBg,
+      borderColor: this.colors.border,
+      backgroundColor: this.colors.headerBg,
       padding: 1,
     })
     contentBox.add(this.eventsBox)
@@ -856,7 +1034,7 @@ class GoogleCalendarTUI {
     const selectedDateHeader = new TextRenderable(this.renderer, {
       id: "selected-date-header",
       content: format(this.selectedDate, "EEEE, MMM d"),
-      fg: COLORS.headerFg,
+      fg: this.colors.headerFg,
       marginBottom: 1,
     })
     this.eventsBox.add(selectedDateHeader)
@@ -866,17 +1044,17 @@ class GoogleCalendarTUI {
       const allDayHeader = new TextRenderable(this.renderer, {
         id: "allday-header",
         content: "All Day",
-        fg: COLORS.otherMonthFg,
+        fg: this.colors.otherMonthFg,
       })
       this.eventsBox.add(allDayHeader)
 
       allDayEvents.forEach((event, index) => {
-        const color = this.calendars.find(calendar => calendar.id === event.calendarId)?.color || COLORS.eventDot
+        const color = this.calendars.find(calendar => calendar.id === event.calendarId)?.color || this.colors.eventDot
         const eventBox = new BoxRenderable(this.renderer, {
           id: `allday-event-${index}`,
           width: "100%",
           flexShrink: 0,
-          backgroundColor: COLORS.bg,
+          backgroundColor: this.colors.bg,
           padding: 1,
           marginBottom: 1,
           border: true,
@@ -887,7 +1065,7 @@ class GoogleCalendarTUI {
         const eventTitle = new TextRenderable(this.renderer, {
           id: `allday-title-${index}`,
           content: this.truncate(event.title, 28),
-          fg: COLORS.fg,
+          fg: this.colors.fg,
         })
         eventBox.add(eventTitle)
         this.eventsBox?.add(eventBox)
@@ -897,7 +1075,7 @@ class GoogleCalendarTUI {
     const timedHeader = new TextRenderable(this.renderer, {
       id: "timed-events-header",
       content: "Events",
-      fg: COLORS.otherMonthFg,
+      fg: this.colors.otherMonthFg,
       marginTop: 1,
     })
     this.eventsBox.add(timedHeader)
@@ -908,8 +1086,8 @@ class GoogleCalendarTUI {
       backgroundColor: "transparent",
       scrollbarOptions: {
         trackOptions: {
-          foregroundColor: COLORS.scrollThumb,
-          backgroundColor: COLORS.scrollBg,
+          foregroundColor: this.colors.scrollThumb,
+          backgroundColor: this.colors.scrollBg,
         },
       },
     })
@@ -930,18 +1108,18 @@ class GoogleCalendarTUI {
       const emptyText = new TextRenderable(this.renderer, {
         id: "no-events-text",
         content: "No timed events",
-        fg: COLORS.otherMonthFg,
+        fg: this.colors.otherMonthFg,
         marginTop: 1,
       })
       this.eventsScrollBox.add(emptyText)
     } else {
       dayEvents.forEach((event, index) => {
-        const color = this.calendars.find(calendar => calendar.id === event.calendarId)?.color || COLORS.eventDot
+        const color = this.calendars.find(calendar => calendar.id === event.calendarId)?.color || this.colors.eventDot
         const eventBox = new BoxRenderable(this.renderer, {
           id: `timed-event-${index}`,
           width: "100%",
           flexShrink: 0,
-          backgroundColor: index % 2 === 0 ? COLORS.bg : "transparent",
+          backgroundColor: index % 2 === 0 ? this.colors.bg : "transparent",
           padding: 1,
           marginBottom: 1,
           border: true,
@@ -960,7 +1138,7 @@ class GoogleCalendarTUI {
         const titleText = new TextRenderable(this.renderer, {
           id: `timed-event-title-${index}`,
           content: this.truncate(event.title, 30),
-          fg: COLORS.fg,
+          fg: this.colors.fg,
           marginTop: 0,
         })
         eventBox.add(titleText)
@@ -969,7 +1147,7 @@ class GoogleCalendarTUI {
           const locationText = new TextRenderable(this.renderer, {
             id: `timed-event-location-${index}`,
             content: this.truncate(`@ ${event.location}`, 30),
-            fg: COLORS.otherMonthFg,
+            fg: this.colors.otherMonthFg,
             marginTop: 0,
           })
           eventBox.add(locationText)
@@ -1015,7 +1193,8 @@ class GoogleCalendarTUI {
     return Boolean(
       this.renderer.root.getRenderable("calendar-overlay") ||
       this.renderer.root.getRenderable("help-overlay") ||
-      this.renderer.root.getRenderable("event-overlay")
+      this.renderer.root.getRenderable("event-overlay") ||
+      this.renderer.root.getRenderable("theme-overlay")
     )
   }
 
@@ -1071,6 +1250,9 @@ class GoogleCalendarTUI {
         return
       case "t":
         await this.goToToday()
+        return
+      case "p":
+        this.showThemeSelector()
         return
       case "r":
         await this.refreshEvents()
@@ -1138,7 +1320,7 @@ class GoogleCalendarTUI {
       id: "help-overlay",
       width: "100%",
       height: "100%",
-      backgroundColor: COLORS.overlayBg,
+      backgroundColor: this.colors.overlayBg,
       position: "absolute",
       top: 0,
       left: 0,
@@ -1153,10 +1335,10 @@ class GoogleCalendarTUI {
       width: 70,
       height: "auto",
       flexDirection: "column",
-      backgroundColor: COLORS.headerBg,
+      backgroundColor: this.colors.headerBg,
       border: true,
       borderStyle: "rounded",
-      borderColor: COLORS.border,
+      borderColor: this.colors.border,
       padding: 2,
     })
     overlay.add(dialog)
@@ -1164,7 +1346,7 @@ class GoogleCalendarTUI {
     const title = new TextRenderable(this.renderer, {
       id: "help-title",
       content: "Keyboard Commands",
-      fg: COLORS.headerFg,
+      fg: this.colors.headerFg,
       alignSelf: "center",
       marginBottom: 1,
     })
@@ -1175,6 +1357,7 @@ class GoogleCalendarTUI {
       "Navigate day: left / right",
       "Navigate week: up / down (or k / j)",
       "Navigate month: h / l",
+      "Theme palette: p",
       "Today: t",
       "Refresh events: r",
       "Toggle calendars: c",
@@ -1188,7 +1371,7 @@ class GoogleCalendarTUI {
       const text = new TextRenderable(this.renderer, {
         id: `help-line-${index}`,
         content: line,
-        fg: COLORS.fg,
+        fg: this.colors.fg,
       })
       dialog.add(text)
     })
@@ -1222,7 +1405,7 @@ class GoogleCalendarTUI {
       id: "event-overlay",
       width: "100%",
       height: "100%",
-      backgroundColor: COLORS.overlayBg,
+      backgroundColor: this.colors.overlayBg,
       position: "absolute",
       top: 0,
       left: 0,
@@ -1237,10 +1420,10 @@ class GoogleCalendarTUI {
       width: 72,
       height: "auto",
       flexDirection: "column",
-      backgroundColor: COLORS.headerBg,
+      backgroundColor: this.colors.headerBg,
       border: true,
       borderStyle: "rounded",
-      borderColor: COLORS.border,
+      borderColor: this.colors.border,
       padding: 2,
     })
     overlay.add(dialog)
@@ -1250,7 +1433,7 @@ class GoogleCalendarTUI {
     const title = new TextRenderable(this.renderer, {
       id: "event-title",
       content: this.truncate(event.title, 64),
-      fg: COLORS.headerFg,
+      fg: this.colors.headerFg,
       marginBottom: 1,
     })
     dialog.add(title)
@@ -1266,7 +1449,7 @@ class GoogleCalendarTUI {
       const detail = new TextRenderable(this.renderer, {
         id: `event-detail-line-${index}`,
         content: line,
-        fg: COLORS.fg,
+        fg: this.colors.fg,
       })
       dialog.add(detail)
     })
@@ -1274,7 +1457,7 @@ class GoogleCalendarTUI {
     const hint = new TextRenderable(this.renderer, {
       id: "event-detail-hint",
       content: "Press esc, enter, or q to close",
-      fg: COLORS.otherMonthFg,
+      fg: this.colors.otherMonthFg,
       marginTop: 1,
       alignSelf: "center",
     })
@@ -1308,7 +1491,7 @@ class GoogleCalendarTUI {
       id: "calendar-overlay",
       width: "100%",
       height: "100%",
-      backgroundColor: COLORS.overlayBg,
+      backgroundColor: this.colors.overlayBg,
       position: "absolute",
       top: 0,
       left: 0,
@@ -1323,10 +1506,10 @@ class GoogleCalendarTUI {
       width: 54,
       height: "auto",
       flexDirection: "column",
-      backgroundColor: COLORS.headerBg,
+      backgroundColor: this.colors.headerBg,
       border: true,
       borderStyle: "rounded",
-      borderColor: COLORS.border,
+      borderColor: this.colors.border,
       padding: 2,
     })
     overlay.add(dialogBox)
@@ -1334,7 +1517,7 @@ class GoogleCalendarTUI {
     const titleText = new TextRenderable(this.renderer, {
       id: "calendar-dialog-title",
       content: "Select Calendars",
-      fg: COLORS.headerFg,
+      fg: this.colors.headerFg,
       alignSelf: "center",
       marginBottom: 1,
     })
@@ -1358,7 +1541,7 @@ class GoogleCalendarTUI {
         const item = new BoxRenderable(this.renderer, {
           id: `calendar-item-${index}`,
           width: "100%",
-          backgroundColor: selected ? COLORS.selectedBg : "transparent",
+          backgroundColor: selected ? this.colors.selectedBg : "transparent",
           height: 1,
         })
 
@@ -1366,7 +1549,7 @@ class GoogleCalendarTUI {
         const line = new TextRenderable(this.renderer, {
           id: `calendar-item-text-${index}`,
           content: `${check} ${this.truncate(calendar.name, 46)}`,
-          fg: selected ? COLORS.selectedFg : COLORS.fg,
+          fg: selected ? this.colors.selectedFg : this.colors.fg,
         })
         item.add(line)
         calendarListBox.add(item)
@@ -1378,7 +1561,7 @@ class GoogleCalendarTUI {
     const hintText = new TextRenderable(this.renderer, {
       id: "calendar-hint",
       content: "up/down move, space toggle, enter save, esc cancel",
-      fg: COLORS.dayHeaderFg,
+      fg: this.colors.dayHeaderFg,
       alignSelf: "center",
       marginTop: 1,
     })
@@ -1424,6 +1607,136 @@ class GoogleCalendarTUI {
             renderCalendarItems()
             this.renderer.requestRender()
           }
+          return
+        }
+
+        if (key.name === "return" || key.name === "linefeed") {
+          await close(true)
+          return
+        }
+
+        if (key.name === "escape" || key.name === "q") {
+          await close(false)
+        }
+      })()
+    }
+
+    this.renderer.keyInput.on("keypress", handleKey)
+    this.renderer.requestRender()
+  }
+
+  private showThemeSelector() {
+    if (this.isModalOpen()) return
+
+    const overlay = new BoxRenderable(this.renderer, {
+      id: "theme-overlay",
+      width: "100%",
+      height: "100%",
+      backgroundColor: this.colors.overlayBg,
+      position: "absolute",
+      top: 0,
+      left: 0,
+      zIndex: 100,
+      justifyContent: "center",
+      alignItems: "center",
+    })
+    this.renderer.root.add(overlay)
+
+    const dialogBox = new BoxRenderable(this.renderer, {
+      id: "theme-dialog",
+      width: 40,
+      height: "auto",
+      flexDirection: "column",
+      backgroundColor: this.colors.headerBg,
+      border: true,
+      borderStyle: "rounded",
+      borderColor: this.colors.border,
+      padding: 2,
+    })
+    overlay.add(dialogBox)
+
+    const titleText = new TextRenderable(this.renderer, {
+      id: "theme-dialog-title",
+      content: "Select Theme",
+      fg: this.colors.headerFg,
+      alignSelf: "center",
+      marginBottom: 1,
+    })
+    dialogBox.add(titleText)
+
+    const themeListBox = new BoxRenderable(this.renderer, {
+      id: "theme-list",
+      flexDirection: "column",
+      gap: 0,
+    })
+    dialogBox.add(themeListBox)
+
+    const themeNames = Object.keys(THEMES) as ThemeName[]
+    let selectedIndex = Math.max(0, themeNames.indexOf(this.themeName))
+    const originalThemeName = this.themeName
+
+    const renderThemeItems = () => {
+      themeListBox.getChildren().forEach(child => themeListBox.remove(child.id))
+
+      themeNames.forEach((themeName, index) => {
+        const selected = index === selectedIndex
+        const current = themeName === this.themeName
+        const item = new BoxRenderable(this.renderer, {
+          id: `theme-item-${themeName}`,
+          width: "100%",
+          backgroundColor: selected ? this.colors.selectedBg : "transparent",
+          height: 1,
+        })
+
+        const prefix = current ? "*" : " "
+        const line = new TextRenderable(this.renderer, {
+          id: `theme-item-text-${themeName}`,
+          content: `${prefix} ${THEMES[themeName].label}`,
+          fg: selected ? this.colors.selectedFg : this.colors.fg,
+        })
+        item.add(line)
+        themeListBox.add(item)
+      })
+    }
+
+    renderThemeItems()
+
+    const hintText = new TextRenderable(this.renderer, {
+      id: "theme-hint",
+      content: "up/down move, enter apply, esc cancel",
+      fg: this.colors.dayHeaderFg,
+      alignSelf: "center",
+      marginTop: 1,
+    })
+    dialogBox.add(hintText)
+
+    const close = async (applyChanges: boolean) => {
+      this.renderer.keyInput.off("keypress", handleKey)
+      overlay.destroyRecursively()
+
+      if (applyChanges) {
+        this.applyTheme(themeNames[selectedIndex] ?? DEFAULT_THEME_NAME)
+        await this.persistUiState()
+        await this.refreshCalendar()
+      } else {
+        this.applyTheme(originalThemeName)
+        this.renderer.requestRender()
+      }
+    }
+
+    const handleKey = (key: KeyEvent) => {
+      void (async () => {
+        if (key.name === "up" || key.name === "k") {
+          selectedIndex = Math.max(0, selectedIndex - 1)
+          renderThemeItems()
+          this.renderer.requestRender()
+          return
+        }
+
+        if (key.name === "down" || key.name === "j") {
+          selectedIndex = Math.min(themeNames.length - 1, selectedIndex + 1)
+          renderThemeItems()
+          this.renderer.requestRender()
           return
         }
 
